@@ -14,11 +14,11 @@ consumer_secret = "nBHFj5OIMzYteMeyXXhvZXQeIOMFi8TKRY0sBTvqPseowSasAr"
 access_token = "1064292907-NG7YvAfYi8vgc2R9LNPyPpTukiNCqI3WbY9A9EE"
 access_token_secret = "Hvg9OPVomgmKwG3BUP7K8rlFAEhhQMfn0e80XpYgnffTJ"
 dburi = "mongodb://localhost:27017/twitter_sampling"
-follow = ""
-locations = ""
+follow = None
+locations = "-124.47,24.0,-66.56,49.3843"
 language = "en"
 firehose = False
-track = ""
+track = None
 tweets_collection = "tweet_collection"
 
 tweetcounter = 0
@@ -36,6 +36,7 @@ def main(argv):
 
     logging.basicConfig(format=FORMAT, level=loglevel, stream=sys.stdout)
     logger = logging.getLogger('twitter')
+    logger.info("Starting to collect tweets")
 
     if consumer_key is None or consumer_secret is None or access_token is None or access_token_secret is None:
         logger.fatal("Consumer key, consumer secret, access token and access token secret are all required when using the streaming API.")
@@ -85,7 +86,10 @@ def main(argv):
 
     while True:
         try:
-            stream.statuses.sample()
+            if locations or language:
+                stream.statuses.filter(locations=locations, language=language, track="twitter")
+            else:
+                stream.statuses.sample()
 
         except Exception, e:
             print e.__doc__

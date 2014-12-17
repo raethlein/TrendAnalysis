@@ -87,7 +87,7 @@ def main(argv):
     while True:
         try:
             if locations or language:
-                stream.statuses.filter(locations=locations, language=language, track="twitter")
+                stream.statuses.filter(locations=locations, language=language)
             else:
                 stream.statuses.sample()
 

@@ -56,6 +56,8 @@ def main(argv):
     tweets.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
     tweets.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
     tweets.ensure_index("created_at", direction=pymongo.ASCENDING)
+    tweets.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
+    tweets.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
     class TapStreamer(TwythonStreamer):
         def on_success(self, data):

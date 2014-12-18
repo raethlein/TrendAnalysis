@@ -44,7 +44,7 @@ def calc_stats():
 def save_reports(reports):
     global stats_counter, period_tweet_counter, hashtags_counter, mentions_counter
     calc_stats()
-    report = {'created_at': time.time(),
+    report = {'created_at': datetime.datetime.now(),
               'stats_counter': sum(stats_counter.values()),
               'period_tweet_counter': period_tweet_counter,
               'hashtags_counter': hashtags_counter,

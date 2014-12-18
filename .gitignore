@@ -55,6 +55,5 @@ docs/_build/
 target/
 
 # Idea stuff:
-**/.idea/workspace.xml 
-**/.idea/tasks.xml
+.idea/
 *.iws

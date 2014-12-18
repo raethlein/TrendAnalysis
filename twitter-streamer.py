@@ -16,7 +16,10 @@ access_token = "1064292907-NG7YvAfYi8vgc2R9LNPyPpTukiNCqI3WbY9A9EE"
 access_token_secret = "Hvg9OPVomgmKwG3BUP7K8rlFAEhhQMfn0e80XpYgnffTJ"
 dburi = "mongodb://localhost:27017/twitter_sampling"
 follow = None
-locations = "-124.47,24.0,-66.56,49.3843"
+bounding_box_usa = "-124.47,24.0,-66.56,49.3843"
+bounding_box_australia = "112.92112,-54.640301,159.2787,-9.22882"
+bounding_box_europe = "-31.266001,27.636311,39.869301,81.008797"
+locations = bounding_box_usa + "," + bounding_box_australia + "," + bounding_box_europe
 language = "en"
 firehose = False
 track = None
@@ -139,11 +142,11 @@ def main(argv):
     stream = TapStreamer(consumer_key, consumer_secret, access_token, access_token_secret)
     logger.info("Collecting tweets from the streaming API...")
 
+    global start_time
+    start_time = time.time()
     while True:
         try:
             if locations or language:
-                global start_time
-                start_time = time.time()
                 stream.statuses.filter(locations=locations, language=language)
             else:
                 stream.statuses.sample()

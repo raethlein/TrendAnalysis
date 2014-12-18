@@ -10,10 +10,10 @@ import time
 
 
 #twitter access configuration
-consumer_key = "T8kK5ev2SJfPYrhZYLDC5shx9"
-consumer_secret = "uQvD8ROBwbvr6AlIw29kwvyY7lZnpzIwyqnyzQ9YW7F8DXmrjp"
-access_token = "2149523042-C0l0ekF7l7VfTg1RxNLMIZ0acn2hvpRxOSbbDiK"
-access_token_secret = "LePbLMYh5lUSPNNJVBFJUaZiisAXCXYF8jZ4kSkuii7CL"
+consumer_key = "cyQcQzONYkfRg7OPv08mD9G4q"
+consumer_secret = "nBHFj5OIMzYteMeyXXhvZXQeIOMFi8TKRY0sBTvqPseowSasAr"
+access_token = "1064292907-NG7YvAfYi8vgc2R9LNPyPpTukiNCqI3WbY9A9EE"
+access_token_secret = "Hvg9OPVomgmKwG3BUP7K8rlFAEhhQMfn0e80XpYgnffTJ"
 dburi = "mongodb://localhost:27017/twitter_sampling"
 follow = None
 locations = "-124.47,24.0,-66.56,49.3843"

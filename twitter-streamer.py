@@ -27,7 +27,7 @@ stats_counter = Counter()
 period_tweet_counter = 0
 mentions_counter = 0
 hashtags_counter = 0
-TIME_THRESHOLD_SEC = 0.3 * 60  # seconds until report is persisted
+TIME_THRESHOLD_SEC = 10 * 60  # seconds until report is persisted
 start_time = 0
 report_collection = "report_collection"
 

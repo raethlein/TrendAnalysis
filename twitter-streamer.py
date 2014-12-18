@@ -5,14 +5,15 @@ import logging
 import sys
 import datetime
 from email.utils import parsedate
-
+from collections import Counter
+import time
 
 
 #twitter access configuration
-consumer_key = "cyQcQzONYkfRg7OPv08mD9G4q"
-consumer_secret = "nBHFj5OIMzYteMeyXXhvZXQeIOMFi8TKRY0sBTvqPseowSasAr"
-access_token = "1064292907-NG7YvAfYi8vgc2R9LNPyPpTukiNCqI3WbY9A9EE"
-access_token_secret = "Hvg9OPVomgmKwG3BUP7K8rlFAEhhQMfn0e80XpYgnffTJ"
+consumer_key = "T8kK5ev2SJfPYrhZYLDC5shx9"
+consumer_secret = "uQvD8ROBwbvr6AlIw29kwvyY7lZnpzIwyqnyzQ9YW7F8DXmrjp"
+access_token = "2149523042-C0l0ekF7l7VfTg1RxNLMIZ0acn2hvpRxOSbbDiK"
+access_token_secret = "LePbLMYh5lUSPNNJVBFJUaZiisAXCXYF8jZ4kSkuii7CL"
 dburi = "mongodb://localhost:27017/twitter_sampling"
 follow = None
 locations = "-124.47,24.0,-66.56,49.3843"
@@ -20,8 +21,48 @@ language = "en"
 firehose = False
 track = None
 tweets_collection = "tweet_collection"
-
 tweetcounter = 0
+
+stats_counter = Counter()
+period_tweet_counter = 0
+mentions_counter = 0
+hashtags_counter = 0
+TIME_THRESHOLD_SEC = 0.3 * 60  # seconds until report is persisted
+start_time = 0
+report_collection = "report_collection"
+
+
+def calc_stats():
+    global stats_counter, hashtags_counter, mentions_counter
+    for v in stats_counter:
+        if v.startswith("#"):
+            hashtags_counter = hashtags_counter + 1
+        elif v.startswith("@"):
+            mentions_counter = mentions_counter + 1
+
+
+def save_reports(reports):
+    global stats_counter, period_tweet_counter, hashtags_counter, mentions_counter
+    calc_stats()
+    report = {'created_at': time.time(),
+              'stats_counter': sum(stats_counter.values()),
+              'period_tweet_counter': period_tweet_counter,
+              'hashtags_counter': hashtags_counter,
+              'mentions_counter': mentions_counter,
+              'stats': dict(stats_counter)}
+    reports.insert(report)
+    stats_counter.clear()
+    period_tweet_counter = 0
+    hashtags_counter = 0
+    mentions_counter = 0
+
+
+def collect_stats(tweet):
+    for hashtag in tweet['entities']['hashtags']:
+        stats_counter.update({"#" + hashtag['text']: 1})
+    for mention in tweet['entities']['user_mentions']:
+        stats_counter.update({"@" + mention['screen_name']: 1})
+
 
 def main(argv):
     FORMAT = '[%(asctime)-15s] %(levelname)s: %(message)s'
@@ -59,8 +100,13 @@ def main(argv):
     tweets.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
     tweets.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
+    reports = db[report_collection]
+    reports.ensure_index("created_at", direction=pymongo.ASCENDING)
+
     class TapStreamer(TwythonStreamer):
         def on_success(self, data):
+            global TIME_THRESHOLD_SEC, start_time, period_tweet_counter
+
             if 'text' in data:
                 data['created_at'] = parse_datetime(data['created_at'])
                 try:
@@ -68,9 +114,15 @@ def main(argv):
                 except:
                     pass
                 try:
+                    collect_stats(data)
+                    if (time.time() - start_time) > TIME_THRESHOLD_SEC:
+                        save_reports(reports)
+                        start_time = time.time()
+
                     tweets.insert(data)
                     global tweetcounter
                     tweetcounter = tweetcounter + 1
+                    period_tweet_counter = period_tweet_counter + 1
                     if (tweetcounter % 2000 is 0):
                         logger.debug(str(tweetcounter) + " tweets collected")
                 except Exception as e:
@@ -80,8 +132,8 @@ def main(argv):
             if 'limit' in data:
                 logger.warn("The filtered stream has matched more Tweets than its current rate limit allows it to be delivered.")
 
-    def on_error(self, status_code, data):
-        logger.error("Received error code " + str(status_code) + ".")
+        def on_error(self, status_code, data):
+            logger.error("Received error code " + str(status_code) + ".")
 
 
     stream = TapStreamer(consumer_key, consumer_secret, access_token, access_token_secret)
@@ -90,6 +142,8 @@ def main(argv):
     while True:
         try:
             if locations or language:
+                global start_time
+                start_time = time.time()
                 stream.statuses.filter(locations=locations, language=language)
             else:
                 stream.statuses.sample()

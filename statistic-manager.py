@@ -1,7 +1,6 @@
 import sys
 import pymongo
 import logging
-import datetime
 import time
 
 import report_generator
@@ -46,29 +45,31 @@ def main(argv):
     summary_db = db[summary_collection]
     summary_db.ensure_index("created_at", direction=pymongo.ASCENDING)
 
-
-    last_time_report = datetime.datetime.now()
-    last_time_small_summary = datetime.datetime.now()
-    last_time_big_summary = datetime.datetime.now()
+    last_time_report = time.time()
+    last_time_small_summary = time.time()
+    last_time_big_summary = time.time()
     small_summary_count = small_summary_interval_minutes / report_interval_minutes
     big_summary_count = big_summary_interval_minutes / report_interval_minutes
 
     while True:
-        time_since_report = datetime.datetime.now() - last_time_report
-        time_since_small_summary = datetime.datetime.now() - last_time_small_summary
-        time_since_big_summary = datetime.datetime.now() - last_time_big_summary
+        time_since_report = time.time() - last_time_report
+        time_since_small_summary = time.time() - last_time_small_summary
+        time_since_big_summary = time.time() - last_time_big_summary
 
         if time_since_report >= (report_interval_minutes * 60):
+            logger.info("Generated report")
             report_generator.generate_report(tweet_db, report_db)
-            last_time_report = datetime.datetime.now()
+            last_time_report = time.time()
 
         if time_since_small_summary >= (small_summary_interval_minutes * 60):
+            logger.info("Generated small summary")
             summary_generator.generate_summary(report_db, small_summary_count, summary_db)
-            last_time_small_summary = datetime.datetime.now()
+            last_time_small_summary = time.time()
 
         if time_since_big_summary >= (big_summary_interval_minutes * 60):
+            logger.info("Generated big summary")
             summary_generator.generate_summary(report_db, big_summary_count, summary_db)
-            last_time_big_summary = datetime.datetime.now()
+            last_time_big_summary = time.time()
 
         # sleep one minute
         time.sleep(60)

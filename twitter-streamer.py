@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
-from collections import Counter, OrderedDict
 import logging
 import sys
 import datetime
 from email.utils import parsedate
-from collections import Counter
-import time
-
 
 
 #twitter access configuration
@@ -27,191 +23,6 @@ firehose = False
 track = None
 tweets_collection = "tweet_collection"
 tweetcounter = 0
-
-stats_counter = Counter()
-period_tweet_counter = 0
-mentions_counter = 0
-hashtags_counter = 0
-TIME_THRESHOLD_SEC = 20 * 60  # seconds until report is persisted
-SMALL_SUMMARY_SEC = 2 * 60 * 60
-BIG_SUMMARY_SEC = 4 * 60 * 60
-start_time = 0
-small_summary_start = 0
-big_summary_start = 0
-report_collection = "report_collection"
-summary_collection = "summary_collection"
-
-################################################################
-# HACKY CUZ IMPORT NOT WORKING
-###########################################
-report_interval_minutes = 20
-# drop hashtags / mentions occuring lesser / equals than this value over all reports
-irrelevant_score = 16
-
-def generate_statistic(db_reports, report_count, summary_db):
-    global report_interval_minutes
-
-    # read reports
-    reports = db_reports.find().sort("created_at", -1).limit(report_count)
-
-    # init foo
-    cumulatedCounter = Counter()
-    average_hashtags_minute = -1
-    average_hashtags_tweet = -1
-    average_mentions_minute = -1
-    average_mentions_tweet = -1
-    average_tweet_minute = -1
-    hashtag_count = 0
-    mention_count = 0
-    tweet_count = 0
-    deleted_count = 0
-
-    # loop over reports for counters and general statistics
-    for report in reports:
-        for stat in report["stats"]:
-            cumulatedCounter.update({stat: report["stats"][stat]})
-
-        hashtag_count = hashtag_count + report["hashtags_counter"]
-        mention_count = mention_count + report["mentions_counter"]
-        tweet_count = tweet_count + report["period_tweet_counter"]
-
-    # calculate general statistics
-    average_hashtags_minute = hashtag_count / (report_count * report_interval_minutes)
-    average_hashtags_tweet = hashtag_count / tweet_count
-    average_mentions_minute = mention_count / (report_count * report_interval_minutes)
-    average_mentions_tweet = mention_count / tweet_count
-    average_tweet_minute = tweet_count / (report_count * report_interval_minutes)
-
-    # save general statistics into summary
-    summary = {}
-    summary["created_at"] = datetime.datetime.now()
-    summary["average_hashtags_minute"] = average_hashtags_minute
-    summary["average_hashtags_tweet"] = average_hashtags_tweet
-    summary["average_mentions_minute"] = average_mentions_minute
-    summary["average_mentions_tweet"] = average_mentions_tweet
-    summary["average_tweet_minute"] = average_tweet_minute
-    summary["total_tweets"] = tweet_count
-    summary["total_hashtags"] = hashtag_count
-    summary["total_mentions"] = mention_count
-    summary["analyzed_reports"] = report_count
-    summary["analyzed_time_frame"] = report_count * report_interval_minutes
-
-    # loop over all hashtags / mentions
-    for stat in set(cumulatedCounter):
-        # drop hashtag / mention if irrelevant
-        if cumulatedCounter[stat] <= irrelevant_score:
-            del cumulatedCounter[stat]
-            deleted_count = deleted_count + 1
-        else:
-            #  calculate stats per hashtag / mention
-
-            # init foo
-            reports.rewind()
-            prev_count = 0
-            first_count = -1
-            last_count = -1
-            min_count = 0
-            max_count = 0
-            sum_count = 0
-            differences_absolute = []
-            differences_percentage = []
-
-            # collect stats for hashtag / mention from every report
-            for report in reports:
-                current_count = report["stats"].get(stat, 0)
-                if first_count == -1:
-                    first_count = current_count
-
-                # calculate differences (growths)
-                difference_abs = current_count - prev_count
-                difference_per = 1
-                if prev_count != 0:
-                    difference_per = current_count / prev_count
-
-                # save differences
-                differences_absolute.append(difference_abs)
-                differences_percentage.append(difference_per)
-
-                # find min / max
-                if min_count > current_count:
-                    min_count = current_count
-                if max_count < current_count:
-                    max_count = current_count
-
-                sum_count = sum_count + current_count
-                prev_count = current_count
-                last_count = current_count
-
-            total_difference_absolute = last_count - first_count
-            total_difference_relative = 1
-            if first_count != 0:
-                total_difference_relative = last_count / first_count
-
-            summary.setdefault("_stats", {})
-            summary["_stats"].setdefault(stat, {})
-            summary["_stats"][stat]["differences_absolute"] = differences_absolute
-            summary["_stats"][stat]["differences_relative"] = differences_percentage
-            summary["_stats"][stat]["total_difference_absolute"] = total_difference_absolute
-            summary["_stats"][stat]["total_difference_relative"] = total_difference_relative
-            summary["_stats"][stat]["minimum"] = min_count
-            summary["_stats"][stat]["maximum"] = max_count
-            summary["_stats"][stat]["sum"] = sum_count
-            summary["_stats"][stat]["average"] = sum_count / report_count
-
-    summary.setdefault("stats", {})
-    summary["stats"] = OrderedDict(sorted(summary["_stats"].iteritems(), key=lambda x: x[1]["sum"]))
-
-    summary["_stats"] = None
-    summary["deleted_stats"] = deleted_count
-    summary_db.insert(summary)
-
-
-
-################################################################
-# HACKY CUZ IMPORT NOT WORKING
-###########################################
-
-
-
-
-
-
-
-
-def calc_stats():
-    global stats_counter, hashtags_counter, mentions_counter
-    for v in stats_counter:
-        if v.startswith("#"):
-            hashtags_counter = hashtags_counter + 1
-        elif v.startswith("@"):
-            mentions_counter = mentions_counter + 1
-
-
-def save_reports(reports):
-    global stats_counter, period_tweet_counter, hashtags_counter, mentions_counter
-    calc_stats()
-    report = {'created_at': datetime.datetime.now(),
-              'stats_counter': sum(stats_counter.values()),
-              'period_tweet_counter': period_tweet_counter,
-              'hashtags_counter': hashtags_counter,
-              'mentions_counter': mentions_counter,
-              'stats': dict(stats_counter)}
-    reports.insert(report)
-    stats_counter.clear()
-    period_tweet_counter = 0
-    hashtags_counter = 0
-    mentions_counter = 0
-
-
-def collect_stats(tweet):
-    for hashtag in tweet['entities']['hashtags']:
-        stats_counter.update({"#" + hashtag['text']: 1})
-    for mention in tweet['entities']['user_mentions']:
-        stats_counter.update({"@" + mention['screen_name']: 1})
-
-
-def generate_summary(reports, report_count, summary):
-    generate_statistic(reports, report_count, summary)
 
 
 def main(argv):
@@ -250,15 +61,9 @@ def main(argv):
     tweets.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
     tweets.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
-    reports = db[report_collection]
-    reports.ensure_index("created_at", direction=pymongo.ASCENDING)
-
-    summary = db[summary_collection]
-    summary.ensure_index("created_at", direction=pymongo.ASCENDING)
-
     class TapStreamer(TwythonStreamer):
         def on_success(self, data):
-            global TIME_THRESHOLD_SEC, SMALL_SUMMARY_SEC, BIG_SUMMARY_SEC, start_time, small_summary_start, big_summary_start, period_tweet_counter
+            global period_tweet_counter
 
             if 'text' in data:
                 data['created_at'] = parse_datetime(data['created_at'])
@@ -267,19 +72,6 @@ def main(argv):
                 except:
                     pass
                 try:
-                    collect_stats(data)
-                    if (time.time() - start_time) > TIME_THRESHOLD_SEC:
-                        save_reports(reports)
-                        start_time = time.time()
-
-                    if (time.time() - small_summary_start) > SMALL_SUMMARY_SEC:
-                        generate_summary(reports, 6, summary)
-                        small_summary_start = time.time()
-
-                    if (time.time() - big_summary_start) > BIG_SUMMARY_SEC:
-                        generate_summary(reports, 12, summary)
-                        big_summary_start = time.time()
-
                     tweets.insert(data)
                     global tweetcounter
                     tweetcounter = tweetcounter + 1
@@ -299,11 +91,6 @@ def main(argv):
 
     stream = TapStreamer(consumer_key, consumer_secret, access_token, access_token_secret)
     logger.info("Collecting tweets from the streaming API...")
-
-    global start_time, small_summary_start, big_summary_start
-    start_time = time.time()
-    small_summary_start = time.time()
-    big_summary_start = time.time()
 
     while True:
         try:

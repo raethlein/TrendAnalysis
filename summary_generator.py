@@ -1,21 +1,14 @@
 from __future__ import division
 from collections import Counter, OrderedDict
-from operator import itemgetter, attrgetter
 
-import pymongo
-import logging
-import sys
 import datetime
 
-
-dburi = "mongodb://localhost:27017/twitter_sampling"
-report_collection = "report_collection"
-summary_collection = "summary_collection"
 report_interval_minutes = 20
 # drop hashtags / mentions occuring lesser / equals than this value over all reports
-irrelevant_score = 16
+irrelevant_score = 1
 
-def generate_statistic(db_reports, report_count, summary_db):
+
+def generate_summary(db_reports, report_count, summary_db):
     global report_interval_minutes
 
     # read reports
@@ -23,11 +16,6 @@ def generate_statistic(db_reports, report_count, summary_db):
 
     # init foo
     cumulatedCounter = Counter()
-    average_hashtags_minute = -1
-    average_hashtags_tweet = -1
-    average_mentions_minute = -1
-    average_mentions_tweet = -1
-    average_tweet_minute = -1
     hashtag_count = 0
     mention_count = 0
     tweet_count = 0
@@ -114,6 +102,7 @@ def generate_statistic(db_reports, report_count, summary_db):
             if first_count != 0:
                 total_difference_relative = last_count / first_count
 
+            # save stats for hashtag / mention into summary
             summary.setdefault("_stats", {})
             summary["_stats"].setdefault(stat, {})
             summary["_stats"][stat]["differences_absolute"] = differences_absolute
@@ -125,33 +114,10 @@ def generate_statistic(db_reports, report_count, summary_db):
             summary["_stats"][stat]["sum"] = sum_count
             summary["_stats"][stat]["average"] = sum_count / report_count
 
+    # sort the stats for hashtags / mentions by sum
     summary.setdefault("stats", {})
     summary["stats"] = OrderedDict(sorted(summary["_stats"].iteritems(), key=lambda x: x[1]["sum"]))
 
     summary["_stats"] = None
     summary["deleted_stats"] = deleted_count
     summary_db.insert(summary)
-
-
-
-
-# loglevel = logging.DEBUG
-# FORMAT = '[%(asctime)-15s] %(levelname)s: %(message)s'
-#
-# logging.basicConfig(format=FORMAT, level=loglevel, stream=sys.stdout)
-# logger = logging.getLogger('twitter')
-# parsed_dburi = pymongo.uri_parser.parse_uri(dburi)
-# try:
-#         client = pymongo.MongoClient(dburi)
-# except:
-#     logger.fatal("Couldn't connect to MongoDB. Please check your --db argument settings.")
-#     sys.exit(1)
-#
-# db = client[parsed_dburi['database']]
-# reports_db = db[report_collection]
-# reports_db.ensure_index("created_at", direction=pymongo.ASCENDING)
-#
-# summary_db = db[summary_collection]
-# summary_db.ensure_index("created_at", direction=pymongo.ASCENDING)
-#
-# generate_statistic(reports_db, 10, summary_db)

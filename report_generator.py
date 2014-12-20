@@ -10,8 +10,8 @@ tweet_counter = 0
 def generate_report(tweets_db, reports_db):
     global report_interval_minutes, mentions_counter, hashtags_counter, tweet_counter
     # init foo
-    start = datetime.datetime.now() - datetime.timedelta(minutes=report_interval_minutes)
-    end = datetime.datetime.now()
+    start = datetime.datetime.utcnow() - datetime.timedelta(minutes=report_interval_minutes)
+    end = datetime.datetime.utcnow()
 
     # read tweets from last minutes from db
     tweets = tweets_db.find({"created_at": {"$gte": start, "$lt": end}}).sort("created_at", -1)

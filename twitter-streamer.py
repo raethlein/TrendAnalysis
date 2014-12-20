@@ -63,8 +63,6 @@ def main(argv):
 
     class TapStreamer(TwythonStreamer):
         def on_success(self, data):
-            global period_tweet_counter
-
             if 'text' in data:
                 data['created_at'] = parse_datetime(data['created_at'])
                 try:
@@ -75,7 +73,6 @@ def main(argv):
                     tweets.insert(data)
                     global tweetcounter
                     tweetcounter = tweetcounter + 1
-                    period_tweet_counter = period_tweet_counter + 1
                     if (tweetcounter % 2000 is 0):
                         logger.debug(str(tweetcounter) + " tweets collected")
                 except Exception as e:

@@ -8,7 +8,7 @@ import pymongo
 log_format = '[%(asctime)-15s] %(levelname)s: %(message)s'
 report_interval_minutes = 20
 # drop hashtags / mentions occuring lesser / equals than this value over all reports
-irrelevant_score = 1
+irrelevant_score = 2
 
 logging.basicConfig(format=log_format, level=logging.DEBUG, stream=sys.stdout)
 logger = logging.getLogger('summary')
@@ -46,8 +46,8 @@ def generate_summary(db_reports, summary_db, start, end):
                 stat_min = current_stat_count
 
             if stat not in stat_obj:
-                stat_obj[stat] = {'differences_abs': [0, current_stat_count],
-                        'differences_relative': [1],
+                stat_obj[stat] = {'differences_abs': {str(report_count): current_stat_count},
+                        'differences_relative': {str(report_count): 1},
                         'total_difference_abs': current_stat_count,
                         'total_difference_relative': 1,
                         'sum': current_stat_count,
@@ -58,12 +58,12 @@ def generate_summary(db_reports, summary_db, start, end):
 
             else:
                 differences_abs = current_stat_count - previous_stat_count[stat]
-                stat_obj[stat]['differences_abs'].append(differences_abs)
+                stat_obj[stat]['differences_abs'][str(report_count)] = differences_abs
 
                 differences_rel = 1
                 if previous_stat_count[stat] != 0:
                     differences_rel = current_stat_count / previous_stat_count[stat]
-                stat_obj[stat]['differences_relative'].append(differences_rel)
+                stat_obj[stat]['differences_relative'][str(report_count)] = differences_rel
 
                 total_difference_abs = current_stat_count - first_stat_count[stat]
                 stat_obj[stat]['total_difference_abs'] = total_difference_abs
@@ -128,5 +128,6 @@ def generate_summary(db_reports, summary_db, start, end):
         summary_db.insert(summary)
     except pymongo.errors.DocumentTooLarge:
         logger.info("DocumentTooLarge exception: start " + str(start) + " | end: " + str(end))
+        return
 
     logger.info("Finished summary generation for " + str(tweet_count) + " tweets")

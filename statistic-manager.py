@@ -2,6 +2,7 @@ import sys
 import pymongo
 import logging
 import time
+import datetime
 
 import report_generator
 import summary_generator
@@ -48,8 +49,6 @@ def main(argv):
     last_time_report = time.time()
     last_time_small_summary = time.time()
     last_time_big_summary = time.time()
-    small_summary_count = small_summary_interval_minutes / report_interval_minutes
-    big_summary_count = big_summary_interval_minutes / report_interval_minutes
 
     while True:
         time_since_report = time.time() - last_time_report
@@ -58,17 +57,24 @@ def main(argv):
 
         if time_since_report >= (report_interval_minutes * 60):
             logger.info("Generated report")
-            report_generator.generate_report(tweet_db, report_db)
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=report_interval_minutes)
+            end = datetime.datetime.utcnow()
+
+            report_generator.generate_report(tweet_db, report_db, start, end)
             last_time_report = time.time()
 
         if time_since_small_summary >= (small_summary_interval_minutes * 60):
             logger.info("Generated small summary")
-            summary_generator.generate_summary(report_db, small_summary_count, summary_db)
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=small_summary_interval_minutes)
+            end = datetime.datetime.utcnow()
+            summary_generator.generate_summary(report_db, summary_db, start, end)
             last_time_small_summary = time.time()
 
         if time_since_big_summary >= (big_summary_interval_minutes * 60):
             logger.info("Generated big summary")
-            summary_generator.generate_summary(report_db, big_summary_count, summary_db)
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=big_summary_interval_minutes)
+            end = datetime.datetime.utcnow()
+            summary_generator.generate_summary(report_db, summary_db, start, end)
             last_time_big_summary = time.time()
 
         # sleep one minute

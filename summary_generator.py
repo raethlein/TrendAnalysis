@@ -8,11 +8,11 @@ report_interval_minutes = 20
 irrelevant_score = 1
 
 
-def generate_summary(db_reports, report_count, summary_db):
+def generate_summary(db_reports, summary_db, start, end):
     global report_interval_minutes
 
     # read reports
-    reports = db_reports.find().sort("created_at", -1).limit(report_count)
+    reports = db_reports.find({"created_at": {"$gte": start, "$lt": end}})
 
     # init foo
     cumulatedCounter = Counter()
@@ -20,6 +20,7 @@ def generate_summary(db_reports, report_count, summary_db):
     mention_count = 0
     tweet_count = 0
     deleted_count = 0
+    report_count = 0
 
     # loop over reports for counters and general statistics
     for report in reports:
@@ -29,6 +30,10 @@ def generate_summary(db_reports, report_count, summary_db):
         hashtag_count = hashtag_count + report["hashtags_counter"]
         mention_count = mention_count + report["mentions_counter"]
         tweet_count = tweet_count + report["period_tweet_counter"]
+        report_count = report_count + 1
+
+    if report_count == 0:
+        return
 
     # calculate general statistics
     average_hashtags_minute = hashtag_count / (report_count * report_interval_minutes)
@@ -39,7 +44,7 @@ def generate_summary(db_reports, report_count, summary_db):
 
     # save general statistics into summary
     summary = {}
-    summary["created_at"] = datetime.datetime.now()
+    summary["created_at"] = datetime.datetime.utcnow()
     summary["average_hashtags_minute"] = average_hashtags_minute
     summary["average_hashtags_tweet"] = average_hashtags_tweet
     summary["average_mentions_minute"] = average_mentions_minute

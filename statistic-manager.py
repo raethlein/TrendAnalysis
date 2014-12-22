@@ -1,8 +1,8 @@
 import sys
 import pymongo
 import logging
-import datetime
 import time
+import datetime
 
 import report_generator
 import summary_generator
@@ -37,7 +37,7 @@ def main(argv):
     tweet_db.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
     tweet_db.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
     tweet_db.ensure_index("created_at", direction=pymongo.ASCENDING)
-    tweet_db.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
+    tweet_db.ensure_index("entities.hashtags.text", direction=pymongo.ASCENDING)
     tweet_db.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
     report_db = db[report_collection]
@@ -46,29 +46,33 @@ def main(argv):
     summary_db = db[summary_collection]
     summary_db.ensure_index("created_at", direction=pymongo.ASCENDING)
 
-
-    last_time_report = datetime.datetime.now()
-    last_time_small_summary = datetime.datetime.now()
-    last_time_big_summary = datetime.datetime.now()
-    small_summary_count = small_summary_interval_minutes / report_interval_minutes
-    big_summary_count = big_summary_interval_minutes / report_interval_minutes
+    last_time_report = time.time()
+    last_time_small_summary = time.time()
+    last_time_big_summary = time.time()
 
     while True:
-        time_since_report = datetime.datetime.now() - last_time_report
-        time_since_small_summary = datetime.datetime.now() - last_time_small_summary
-        time_since_big_summary = datetime.datetime.now() - last_time_big_summary
+        time_since_report = time.time() - last_time_report
+        time_since_small_summary = time.time() - last_time_small_summary
+        time_since_big_summary = time.time() - last_time_big_summary
 
         if time_since_report >= (report_interval_minutes * 60):
-            report_generator.generate_report(tweet_db, report_db)
-            last_time_report = datetime.datetime.now()
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=report_interval_minutes)
+            end = datetime.datetime.utcnow()
+
+            report_generator.generate_report(tweet_db, report_db, start, end)
+            last_time_report = time.time()
 
         if time_since_small_summary >= (small_summary_interval_minutes * 60):
-            summary_generator.generate_summary(report_db, small_summary_count, summary_db)
-            last_time_small_summary = datetime.datetime.now()
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=small_summary_interval_minutes)
+            end = datetime.datetime.utcnow()
+            summary_generator.generate_summary(report_db, summary_db, start, end)
+            last_time_small_summary = time.time()
 
         if time_since_big_summary >= (big_summary_interval_minutes * 60):
-            summary_generator.generate_summary(report_db, big_summary_count, summary_db)
-            last_time_big_summary = datetime.datetime.now()
+            start = datetime.datetime.utcnow() - datetime.timedelta(minutes=big_summary_interval_minutes)
+            end = datetime.datetime.utcnow()
+            summary_generator.generate_summary(report_db, summary_db, start, end)
+            last_time_big_summary = time.time()
 
         # sleep one minute
         time.sleep(60)

@@ -1,18 +1,24 @@
 from __future__ import division
 from collections import Counter, OrderedDict
-
+import logging
+import sys
 import datetime
+import pymongo
 
+log_format = '[%(asctime)-15s] %(levelname)s: %(message)s'
 report_interval_minutes = 20
 # drop hashtags / mentions occuring lesser / equals than this value over all reports
-irrelevant_score = 1
+irrelevant_score = 30
+
+logging.basicConfig(format=log_format, level=logging.DEBUG, stream=sys.stdout)
+logger = logging.getLogger('summary')
 
 
-def generate_summary(db_reports, report_count, summary_db):
+def generate_summary(db_reports, summary_db, start, end):
     global report_interval_minutes
-
+    logger.info("Started summary generation for start " + str(start) + " | end: " + str(end))
     # read reports
-    reports = db_reports.find().sort("created_at", -1).limit(report_count)
+    reports = db_reports.find({"created_at": {"$gte": start, "$lt": end}})
 
     # init foo
     cumulatedCounter = Counter()
@@ -20,15 +26,77 @@ def generate_summary(db_reports, report_count, summary_db):
     mention_count = 0
     tweet_count = 0
     deleted_count = 0
+    report_count = 0
+
+    stat_obj = {}
+    first_stat_count = {}
+    previous_stat_count = {}
 
     # loop over reports for counters and general statistics
     for report in reports:
+        report_count += 1
         for stat in report["stats"]:
+
             cumulatedCounter.update({stat: report["stats"][stat]})
+            current_stat_count = report['stats'][stat]
+
+            if stat not in stat_obj:
+                stat_obj[stat] = {'differences_abs': {str(report_count): current_stat_count},
+                        'differences_relative': {str(report_count): 1},
+                        'period_count': {str(report_count): current_stat_count},
+                        'total_difference_abs': current_stat_count,
+                        'total_difference_relative': 1,
+                        'sum': current_stat_count,
+                        'max': current_stat_count,
+                        'min': current_stat_count,
+                        'avg': current_stat_count}
+                first_stat_count[stat] = current_stat_count
+
+            else:
+                differences_abs = current_stat_count - previous_stat_count[stat]
+                stat_obj[stat]['differences_abs'][str(report_count)] = differences_abs
+
+                differences_rel = 1
+                if previous_stat_count[stat] != 0:
+                    differences_rel = current_stat_count / previous_stat_count[stat]
+                stat_obj[stat]['differences_relative'][str(report_count)] = differences_rel
+
+                total_difference_abs = current_stat_count - first_stat_count[stat]
+                stat_obj[stat]['total_difference_abs'] = total_difference_abs
+
+                total_difference_rel = 1
+                if first_stat_count[stat] != 0:
+                    total_difference_rel = current_stat_count / first_stat_count[stat]
+                stat_obj[stat]['total_difference_relative'] = total_difference_rel
+
+                stat_obj[stat]['period_count'][str(report_count)] = current_stat_count
+
+                stat_sum = stat_obj[stat]['sum'] + current_stat_count
+                stat_obj[stat]['sum'] = stat_sum
+                stat_obj[stat]['avg'] = stat_sum / report_count
+
+            if current_stat_count > stat_obj[stat]['max']:
+                stat_obj[stat]['max'] = current_stat_count
+            if current_stat_count < stat_obj[stat]['min'] or stat_obj[stat]['min'] == 0:
+                stat_obj[stat]['min'] = current_stat_count
+
+            previous_stat_count[stat] = report["stats"][stat]
 
         hashtag_count = hashtag_count + report["hashtags_counter"]
         mention_count = mention_count + report["mentions_counter"]
         tweet_count = tweet_count + report["period_tweet_counter"]
+
+    delete_stat = []
+    for stat in stat_obj:
+        if stat_obj[stat]['sum'] <= irrelevant_score:
+            delete_stat.append(stat)
+
+    for stat in delete_stat:
+        del stat_obj[stat]
+        deleted_count += 1
+
+    if report_count == 0:
+        return
 
     # calculate general statistics
     average_hashtags_minute = hashtag_count / (report_count * report_interval_minutes)
@@ -39,7 +107,7 @@ def generate_summary(db_reports, report_count, summary_db):
 
     # save general statistics into summary
     summary = {}
-    summary["created_at"] = datetime.datetime.now()
+    summary["created_at"] = datetime.datetime.utcnow()
     summary["average_hashtags_minute"] = average_hashtags_minute
     summary["average_hashtags_tweet"] = average_hashtags_tweet
     summary["average_mentions_minute"] = average_mentions_minute
@@ -50,74 +118,17 @@ def generate_summary(db_reports, report_count, summary_db):
     summary["total_mentions"] = mention_count
     summary["analyzed_reports"] = report_count
     summary["analyzed_time_frame"] = report_count * report_interval_minutes
-
-    # loop over all hashtags / mentions
-    for stat in set(cumulatedCounter):
-        # drop hashtag / mention if irrelevant
-        if cumulatedCounter[stat] <= irrelevant_score:
-            del cumulatedCounter[stat]
-            deleted_count = deleted_count + 1
-        else:
-            #  calculate stats per hashtag / mention
-
-            # init foo
-            reports.rewind()
-            prev_count = 0
-            first_count = -1
-            last_count = -1
-            min_count = 0
-            max_count = 0
-            sum_count = 0
-            differences_absolute = []
-            differences_percentage = []
-
-            # collect stats for hashtag / mention from every report
-            for report in reports:
-                current_count = report["stats"].get(stat, 0)
-                if first_count == -1:
-                    first_count = current_count
-
-                # calculate differences (growths)
-                difference_abs = current_count - prev_count
-                difference_per = 1
-                if prev_count != 0:
-                    difference_per = current_count / prev_count
-
-                # save differences
-                differences_absolute.append(difference_abs)
-                differences_percentage.append(difference_per)
-
-                # find min / max
-                if min_count > current_count:
-                    min_count = current_count
-                if max_count < current_count:
-                    max_count = current_count
-
-                sum_count = sum_count + current_count
-                prev_count = current_count
-                last_count = current_count
-
-            total_difference_absolute = last_count - first_count
-            total_difference_relative = 1
-            if first_count != 0:
-                total_difference_relative = last_count / first_count
-
-            # save stats for hashtag / mention into summary
-            summary.setdefault("_stats", {})
-            summary["_stats"].setdefault(stat, {})
-            summary["_stats"][stat]["differences_absolute"] = differences_absolute
-            summary["_stats"][stat]["differences_relative"] = differences_percentage
-            summary["_stats"][stat]["total_difference_absolute"] = total_difference_absolute
-            summary["_stats"][stat]["total_difference_relative"] = total_difference_relative
-            summary["_stats"][stat]["minimum"] = min_count
-            summary["_stats"][stat]["maximum"] = max_count
-            summary["_stats"][stat]["sum"] = sum_count
-            summary["_stats"][stat]["average"] = sum_count / report_count
+    summary["deleted_count"] = deleted_count
 
     # sort the stats for hashtags / mentions by sum
     summary.setdefault("stats", {})
-    summary["stats"] = OrderedDict(sorted(summary["_stats"].iteritems(), key=lambda x: x[1]["sum"]))
-
-    summary["_stats"] = None
+    summary["stats"] = OrderedDict(sorted(stat_obj.iteritems(), key=lambda x: x[1]["sum"], reverse=True))
+    # summary["_stats"] = None
     summary["deleted_stats"] = deleted_count
-    summary_db.insert(summary)
+    try:
+        summary_db.insert(summary)
+    except pymongo.errors.DocumentTooLarge:
+        logger.info("DocumentTooLarge exception: start " + str(start) + " | end: " + str(end))
+        return
+
+    logger.info("Finished summary generation for " + str(tweet_count) + " tweets")

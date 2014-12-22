@@ -1,5 +1,7 @@
 import datetime
 from collections import Counter
+import logging
+import sys
 
 report_interval_minutes = 20
 stats_counter = Counter()
@@ -7,11 +9,16 @@ mentions_counter = 0
 hashtags_counter = 0
 tweet_counter = 0
 
+FORMAT = '[%(asctime)-15s] %(levelname)s: %(message)s'
+logging.basicConfig(format=FORMAT, level=logging.DEBUG, stream=sys.stdout)
+logger = logging.getLogger('report_generator')
 
 def generate_report(tweets_db, reports_db, start, end):
     global report_interval_minutes, mentions_counter, hashtags_counter, tweet_counter
-    # init foo
 
+    logging.info("Started generating reports")
+
+    # init foo
     total_difference_minute = (end - start).total_seconds() / 60
     total_reports_to_generate = total_difference_minute / report_interval_minutes
 
@@ -31,7 +38,7 @@ def generate_report(tweets_db, reports_db, start, end):
             continue
 
         # save report
-        report = {'created_at': datetime.datetime.utcnow(),
+        report = {'created_at': interval_start,
                   'stats_counter': sum(stats_counter.values()),
                   'period_tweet_counter': tweet_counter,
                   'hashtags_counter': hashtags_counter,
@@ -45,11 +52,13 @@ def generate_report(tweets_db, reports_db, start, end):
         mentions_counter = 0
         tweet_counter = 0
 
+        logging.info("Generated report")
+
 def collect_stats(tweet):
     global stats_counter, hashtags_counter, mentions_counter
     for hashtag in tweet['entities']['hashtags']:
-        stats_counter.update({"#" + hashtag['text']: 1})
+        stats_counter.update({"#" + hashtag['text'].lower(): 1})
         hashtags_counter = hashtags_counter + 1
     for mention in tweet['entities']['user_mentions']:
-        stats_counter.update({"@" + mention['screen_name']: 1})
+        stats_counter.update({"@" + mention['screen_name'].lower(): 1})
         mentions_counter = mentions_counter + 1

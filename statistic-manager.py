@@ -37,7 +37,7 @@ def main(argv):
     tweet_db.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
     tweet_db.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
     tweet_db.ensure_index("created_at", direction=pymongo.ASCENDING)
-    tweet_db.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
+    tweet_db.ensure_index("entities.hashtags.text", direction=pymongo.ASCENDING)
     tweet_db.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
     report_db = db[report_collection]
@@ -56,7 +56,6 @@ def main(argv):
         time_since_big_summary = time.time() - last_time_big_summary
 
         if time_since_report >= (report_interval_minutes * 60):
-            logger.info("Generated report")
             start = datetime.datetime.utcnow() - datetime.timedelta(minutes=report_interval_minutes)
             end = datetime.datetime.utcnow()
 
@@ -64,14 +63,12 @@ def main(argv):
             last_time_report = time.time()
 
         if time_since_small_summary >= (small_summary_interval_minutes * 60):
-            logger.info("Generated small summary")
             start = datetime.datetime.utcnow() - datetime.timedelta(minutes=small_summary_interval_minutes)
             end = datetime.datetime.utcnow()
             summary_generator.generate_summary(report_db, summary_db, start, end)
             last_time_small_summary = time.time()
 
         if time_since_big_summary >= (big_summary_interval_minutes * 60):
-            logger.info("Generated big summary")
             start = datetime.datetime.utcnow() - datetime.timedelta(minutes=big_summary_interval_minutes)
             end = datetime.datetime.utcnow()
             summary_generator.generate_summary(report_db, summary_db, start, end)

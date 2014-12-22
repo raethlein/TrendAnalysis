@@ -8,7 +8,7 @@ import pymongo
 log_format = '[%(asctime)-15s] %(levelname)s: %(message)s'
 report_interval_minutes = 20
 # drop hashtags / mentions occuring lesser / equals than this value over all reports
-irrelevant_score = 2
+irrelevant_score = 30
 
 logging.basicConfig(format=log_format, level=logging.DEBUG, stream=sys.stdout)
 logger = logging.getLogger('summary')
@@ -31,23 +31,19 @@ def generate_summary(db_reports, summary_db, start, end):
     stat_obj = {}
     first_stat_count = {}
     previous_stat_count = {}
-    stat_max = 0
-    stat_min = 0
 
     # loop over reports for counters and general statistics
     for report in reports:
         report_count += 1
         for stat in report["stats"]:
+
             cumulatedCounter.update({stat: report["stats"][stat]})
             current_stat_count = report['stats'][stat]
-            if current_stat_count > stat_max:
-                stat_max = current_stat_count
-            if current_stat_count < stat_min:
-                stat_min = current_stat_count
 
             if stat not in stat_obj:
                 stat_obj[stat] = {'differences_abs': {str(report_count): current_stat_count},
                         'differences_relative': {str(report_count): 1},
+                        'period_count': {str(report_count): current_stat_count},
                         'total_difference_abs': current_stat_count,
                         'total_difference_relative': 1,
                         'sum': current_stat_count,
@@ -71,13 +67,18 @@ def generate_summary(db_reports, summary_db, start, end):
                 total_difference_rel = 1
                 if first_stat_count[stat] != 0:
                     total_difference_rel = current_stat_count / first_stat_count[stat]
-                stat_obj[stat]['total_difference_rel'] = total_difference_rel
+                stat_obj[stat]['total_difference_relative'] = total_difference_rel
+
+                stat_obj[stat]['period_count'][str(report_count)] = current_stat_count
 
                 stat_sum = stat_obj[stat]['sum'] + current_stat_count
                 stat_obj[stat]['sum'] = stat_sum
-                stat_obj[stat]['max'] = stat_max
-                stat_obj[stat]['min'] = stat_min
                 stat_obj[stat]['avg'] = stat_sum / report_count
+
+            if current_stat_count > stat_obj[stat]['max']:
+                stat_obj[stat]['max'] = current_stat_count
+            if current_stat_count < stat_obj[stat]['min'] or stat_obj[stat]['min'] == 0:
+                stat_obj[stat]['min'] = current_stat_count
 
             previous_stat_count[stat] = report["stats"][stat]
 

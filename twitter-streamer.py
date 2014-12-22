@@ -17,7 +17,7 @@ follow = None
 bounding_box_usa = "-124.47,24.0,-66.56,49.3843"
 bounding_box_australia = "112.92112,-54.640301,159.2787,-9.22882"
 bounding_box_europe = "-31.266001,27.636311,39.869301,81.008797"
-locations = bounding_box_usa + "," + bounding_box_australia + "," + bounding_box_europe
+locations = bounding_box_usa #+ "," + bounding_box_australia + "," + bounding_box_europe
 language = "en"
 firehose = False
 track = None
@@ -58,13 +58,17 @@ def main(argv):
     tweets.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
     tweets.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
     tweets.ensure_index("created_at", direction=pymongo.ASCENDING)
-    tweets.ensure_index("entities.hashtags", direction=pymongo.ASCENDING)
+    tweets.ensure_index("entities.hashtags.text", direction=pymongo.ASCENDING)
     tweets.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
     class TapStreamer(TwythonStreamer):
         def on_success(self, data):
             if 'text' in data:
                 data['created_at'] = parse_datetime(data['created_at'])
+
+                for hashtag in data['entities']['hashtags']:
+                    hashtag['text'] = hashtag['text'].lower()
+
                 try:
                     data['user']['created_at'] = parse_datetime(data['user']['created_at'])
                 except:

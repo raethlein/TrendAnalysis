@@ -1,16 +1,5 @@
 package com.twitter.trendanalysis.runner;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Formatter;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.TreeSet;
-import java.util.regex.Pattern;
-
 import cc.mallet.pipe.CharSequence2TokenSequence;
 import cc.mallet.pipe.CharSequenceLowercase;
 import cc.mallet.pipe.Pipe;
@@ -26,6 +15,17 @@ import cc.mallet.types.IDSorter;
 import cc.mallet.types.Instance;
 import cc.mallet.types.InstanceList;
 import cc.mallet.types.LabelSequence;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Formatter;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 
 public class LdaLauncher {
@@ -78,10 +78,10 @@ public class LdaLauncher {
         LabelSequence topics = model.getData().get(0).topicSequence;
 
         Formatter out = new Formatter(new StringBuilder(), Locale.US);
-//        for (int position = 0; position < tokens.getLength(); position++) {
-//            out.format("%s-%d ", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
-//        }
-//        System.out.println(out);
+        for (int position = 0; position < tokens.getLength(); position++) {
+            out.format("%s-%d ", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
+        }
+        System.out.println(out);
 
         // Estimate the topic distribution of the first instance,
         // given the current Gibbs state.

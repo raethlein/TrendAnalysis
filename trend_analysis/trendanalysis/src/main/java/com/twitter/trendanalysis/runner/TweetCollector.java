@@ -17,18 +17,28 @@ public class TweetCollector {
             DB db = mongoClient.getDB("twitter_sampling");
             DBCollection coll = db.getCollection("tweet_collection");
             DBCollection testColl = db.createCollection("test_output", null);
-
-            BasicDBObject hashtagElemMatch = new BasicDBObject("text", "Job");
-            BasicDBObject hashtagMatch = new BasicDBObject("$elemMatch", hashtagElemMatch);
-            BasicDBObject hashtagQuery = new BasicDBObject("entities.hashtags", hashtagMatch);
-
-            BasicDBObject usermentionsElemMatch = new BasicDBObject("screen_name", "meghnlopez");
-            BasicDBObject usermentionsMatch = new BasicDBObject("$elemMatch", usermentionsElemMatch);
-            BasicDBObject usermentionsQuery = new BasicDBObject("entities.user_mentions", usermentionsMatch);
-
+            
             BasicDBList or = new BasicDBList();
-            or.add(hashtagQuery);
-            or.add(usermentionsQuery);
+            
+            or.add(getHashTagQuery("psn"));
+            or.add(getHashTagQuery("lizardquad"));
+            or.add(getHashTagQuery("playstationnetwork"));
+            or.add(getHashTagQuery("psndown"));
+            or.add(getHashTagQuery("finestsquad"));
+            or.add(getHashTagQuery("lizardpatrol"));
+            or.add(getHashTagQuery("payingfornothing"));
+            or.add(getHashTagQuery("psndowntime"));
+            or.add(getHashTagQuery("playstationsucks"));
+            or.add(getHashTagQuery("xboxlivedown"));
+            or.add(getHashTagQuery("xboxsupport"));
+            or.add(getHashTagQuery("xbl"));
+            or.add(getHashTagQuery("psnup"));
+            
+            or.add(getUserMentionsQuery("PlayStation"));
+            or.add(getUserMentionsQuery("KimDotcom"));
+            or.add(getUserMentionsQuery("Megaprivacy"));
+            or.add(getUserMentionsQuery("AskPlayStation"));
+            or.add(getUserMentionsQuery("LizardMafia"));
 
             BasicDBObject query = new BasicDBObject("$or", or);
             Cursor cursor = coll.find(query);
@@ -46,5 +56,17 @@ public class TweetCollector {
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+    }
+    
+    public static BasicDBObject getHashTagQuery(String hashtag) {
+        BasicDBObject hashtagElemMatch = new BasicDBObject("text", hashtag);
+        BasicDBObject hashtagMatch = new BasicDBObject("$elemMatch", hashtagElemMatch);
+        return new BasicDBObject("entities.hashtags", hashtagMatch);
+    }
+    
+    public static BasicDBObject getUserMentionsQuery(String screenName) {
+        BasicDBObject usermentionsElemMatch = new BasicDBObject("screen_name", screenName);
+        BasicDBObject usermentionsMatch = new BasicDBObject("$elemMatch", usermentionsElemMatch);
+        return new BasicDBObject("entities.user_mentions", usermentionsMatch);
     }
 }

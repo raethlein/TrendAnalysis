@@ -109,6 +109,7 @@ do
 does
 doing
 done
+dont
 down
 downwards
 during
@@ -509,6 +510,7 @@ with
 within
 without
 wonder
+wont
 would
 would
 x

@@ -7,6 +7,7 @@ import datetime
 from email.utils import parsedate
 import cleaner
 import time
+import urllib2
 
 consumer_key = "aUn0208rHLXFoN3Xg4hXu9Lgl"
 consumer_secret = "5xaFWqaSQtCuPaExsbtFLLpjvo5Sn7xMjWD3U3k2D0LPoAOjX1"
@@ -19,11 +20,9 @@ language = "en"
 tweets_collection = "hebdo_search"
 fetch_count = 100
 since_id = -1
-search_hasthags = ['#jesuischarlie', '#charliehebdo', '#jenesuispascharlie', '#JeSuisAhmed', '#NousSommesCharlie',
-                      '#ContreLesTerroristes', '#ContreLesTerroristes', '#traque', '#MarcheRepublicaine',
-                      '#RespectforMuslims', '#notinmyname', '#Freedomofthepress', '#FreedomOfSpeech', '#france',
-                      '#iamcharlie', '#interfaith', '#IamNotCharlie', '#NotTerrorised', '#KillAllMuslims',
-                      '#illridewithyou', '#VoyageAvecMoi', '#IslamNonCoupable', '#BlameTheMuslimGame', '@Charlie_Hebdo_']
+query = '#jesuischarlie+OR+#charliehebdo+OR+#jenesuispascharlie+OR+#JeSuisAhmed+OR+#NousSommesCharlie+OR+#MarcheRepublicaine+OR+#RespectforMuslims+OR+#FreedomOfSpeech+OR+#iamcharlie+OR+#KillAllMuslims+OR+#IslamNonCoupable+OR+@Charlie_Hebdo'
+online_tracks_url = 'http://storage.googleapis.com/trend_analysis/hebdo_track.txt'
+validation_word = 'jesuischarlie'
 # search_hasthags = ['#jesuischarlie']
 fetched_tweets_counter = 0
 
@@ -45,6 +44,7 @@ db = client[parsed_dburi['database']]
 
 tweets = db[tweets_collection]
 tweets.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
+tweets.ensure_index("text_words", direction=pymongo.DESCENDING)
 tweets.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
 tweets.ensure_index("created_at", direction=pymongo.ASCENDING)
 tweets.ensure_index("entities.hashtags.text", direction=pymongo.ASCENDING)
@@ -104,28 +104,36 @@ def add_day(date_str):
     print "old: " + date_str + " | new: " + new_date
     return new_date
 
-query = ""
-element_counter = 0
-for hashtag in search_hasthags:
-    element_counter += 1
-    if element_counter != len(search_hasthags):
-        query = query + hashtag + "+OR+"
+def loadtracks():
+    global query
+    response = urllib2.urlopen(online_tracks_url)
+    online_tracks = response.read()
+    if online_tracks is not None and validation_word in online_tracks:
+        print "FOOOOOFOOOOOOOOOOOOOOFOFOFOFOFOFO >>> msdlekfdpojeofdje FOOO"
+        return online_tracks
     else:
-        query += hashtag
+        return query
 
 flag = True
 until_date = "2015-01-06"
-
+print query
+query = loadtracks()
+print query
 while flag is True:
     try:
-        result = twitter.search(q=query, count=fetch_count, lan=language, since_id='552166160930988032', until=until_date)
+        print language
+        result = twitter.search(q=query, count=fetch_count, lang=language, since_id='552166160930988032', until=until_date)
         store_search_results(result['statuses'])
         flag = False
     except twython.exceptions.TwythonRateLimitError as e:
         print "Rate limit exceeded. Sleeping 1 minute."
         time.sleep(60)
 
+counter = 0
 while True:
+    if counter % 250 == 0:
+        query = loadtracks()
+
     if len(result['statuses']) < fetch_count:
         until_date = add_day(until_date)
 
@@ -134,9 +142,9 @@ while True:
             next_results_url_params = result['search_metadata']['next_results']
             if next_results_url_params is not None and len(next_results_url_params) != 0:
                 next_max_id = next_results_url_params.split('max_id=')[1].split('&')[0]
-                result = twitter.search(q=query, count=fetch_count, lan=language, max_id=next_max_id, until=until_date)
+                result = twitter.search(q=query, count=fetch_count, lang=language, max_id=next_max_id, until=until_date)
         else:
-            result = twitter.search(q=query, count=fetch_count, lan=language, until=until_date)
+            result = twitter.search(q=query, count=fetch_count, lang=language, until=until_date)
 
         store_search_results(result['statuses'])
     except twython.exceptions.TwythonRateLimitError as e:

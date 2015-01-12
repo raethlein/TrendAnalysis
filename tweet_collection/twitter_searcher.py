@@ -148,7 +148,7 @@ while True:
     counter += 1
     if counter % 250 == 0:
         query = loadtracks()
-        logger.info("Reloaded Tracks: "+query+"requests "++str(counter)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
+        logger.info("Reloaded Tracks: "+query+"requests "+str(counter)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
         pass
 
     if (counter % 100 == 0):

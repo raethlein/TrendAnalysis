@@ -1,9 +1,10 @@
 import re
-
+import nltk
 from nltk.corpus import stopwords
 from nltk import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 
+#nltk.download()
 cachedStopWords = stopwords.words("english")
 
 

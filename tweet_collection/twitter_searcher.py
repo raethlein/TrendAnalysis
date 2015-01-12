@@ -7,6 +7,7 @@ import datetime
 from email.utils import parsedate
 import cleaner
 import time
+import urllib2
 
 consumer_key = "aUn0208rHLXFoN3Xg4hXu9Lgl"
 consumer_secret = "5xaFWqaSQtCuPaExsbtFLLpjvo5Sn7xMjWD3U3k2D0LPoAOjX1"
@@ -15,21 +16,24 @@ access_token_secret = "Fdb2FzdGvaeXhD746BtO9hQSgOkZIJ4Rpl3jNndbRuSiE"
 
 dburi = "mongodb://localhost:27017/twitter_sampling"
 
+# TWITTER SEARCH API PARAMERTERS
 language = "en"
 tweets_collection = "hebdo_search"
 fetch_count = 100
 since_id = -1
-search_hasthags = ['#jesuischarlie', '#charliehebdo', '#jenesuispascharlie', '#JeSuisAhmed', '#NousSommesCharlie',
-                      '#ContreLesTerroristes', '#ContreLesTerroristes', '#traque', '#MarcheRepublicaine',
-                      '#RespectforMuslims', '#notinmyname', '#Freedomofthepress', '#FreedomOfSpeech', '#france',
-                      '#iamcharlie', '#interfaith', '#IamNotCharlie', '#NotTerrorised', '#KillAllMuslims',
-                      '#illridewithyou', '#VoyageAvecMoi', '#IslamNonCoupable', '#BlameTheMuslimGame', '@Charlie_Hebdo_']
+query = '#JeSuisCharlie+OR+#CharlieHebdo+OR+#ParisShooting+OR+#JeSuisAhmed+OR+#ChalieHebdo+OR+#IamCharlie+OR+#RespectForMuslims+OR+#stopislam+OR+#ParisMarch+OR+#KillAllMuslims+OR+#JeNeSuisPasCharlie+OR+#JeSuisJuif+OR+#MarcheRepublicaine+OR+@Charlie_Hebdo_+OR+#JeSuisKouachi+OR+#OpCharlieHebdo+OR+#ParisAttacks+OR+#KillAllChristians+OR+#JeNeSuisPasCharlie+OR+#FreedomOfSpeech+OR+#NotInMyName+OR+#religionofpeace+OR+Hebdo'
+online_tracks_url = 'http://storage.googleapis.com/trend_analysis/hebdo_track.txt'
+validation_word = 'jesuischarlie'
 # search_hasthags = ['#jesuischarlie']
 fetched_tweets_counter = 0
+result_type = "recent"
+starting_since_id = '552166160930988032'
+until_date = "2015-01-06"
+end_date = "2015-01-14"
 
 # LOGGER
 FORMAT = '[%(asctime)-15s] %(levelname)s: %(message)s'
-loglevel = logging.DEBUG
+loglevel = logging.INFO
 logging.basicConfig(format=FORMAT, level=loglevel, stream=sys.stdout)
 logger = logging.getLogger('twitter')
 logger.info("Starting to collect tweets")
@@ -45,12 +49,12 @@ db = client[parsed_dburi['database']]
 
 tweets = db[tweets_collection]
 tweets.ensure_index("id", direction=pymongo.DESCENDING, unique=True)
+tweets.ensure_index("text_words", direction=pymongo.DESCENDING)
 tweets.ensure_index([("coordinates.coordinates", pymongo.GEO2D), ])
 tweets.ensure_index("created_at", direction=pymongo.ASCENDING)
 tweets.ensure_index("entities.hashtags.text", direction=pymongo.ASCENDING)
 tweets.ensure_index("entities.user_mentions.screen_name", direction=pymongo.ASCENDING)
 
-# twitter = Twython(consumer_key, consumer_secret, access_token, access_token_secret)
 twitter = Twython(consumer_key, consumer_secret)
 
 if consumer_key is None or consumer_secret is None or access_token is None or access_token_secret is None:
@@ -96,52 +100,95 @@ def store_search_results(data):
 
 
 def add_day(date_str):
+    global new_since_id
+
     day = date_str[-2:]
     new_day = int(day) + 1
     if new_day < 10:
         new_day = "0" + str(new_day)
     new_date = date_str[:-2] + str(new_day)
-    print "old: " + date_str + " | new: " + new_date
     return new_date
 
-query = ""
-element_counter = 0
-for hashtag in search_hasthags:
-    element_counter += 1
-    if element_counter != len(search_hasthags):
-        query = query + hashtag + "+OR+"
+def loadtracks():
+    global query
+    response = urllib2.urlopen(online_tracks_url)
+    online_tracks = response.read()
+    if online_tracks is not None and validation_word in online_tracks:
+        return online_tracks
     else:
-        query += hashtag
+        return query
 
 flag = True
-until_date = "2015-01-06"
+query = loadtracks()
+logger.info("Tracks loaded: "+query)
 
 while flag is True:
     try:
-        result = twitter.search(q=query, count=fetch_count, lan=language, since_id='552166160930988032', until=until_date)
+        print language
+
+        result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type,
+                                since_id=starting_since_id, until=until_date)
+        if 'refresh_url' in result['search_metadata']:
+                refresh_url_url_params = result['search_metadata']['refresh_url']
+                if refresh_url_url_params is not None and len(refresh_url_url_params) != 0:
+                    new_since_id = refresh_url_url_params.split('since_id=')[1].split('&')[0]
+
+        logger.info("FIRST DATE SELECTED: | new: " + until_date +" | next_since_id: " + new_since_id + "<<<")
         store_search_results(result['statuses'])
         flag = False
     except twython.exceptions.TwythonRateLimitError as e:
-        print "Rate limit exceeded. Sleeping 1 minute."
+        logger.warning("Rate limit exceeded. Sleeping 1 minute.")
         time.sleep(60)
 
+counter = 0
+
+old_since_id = starting_since_id
+date_changed = False
 while True:
-    if len(result['statuses']) < fetch_count:
+    counter += 1
+    if counter % 250 == 0:
+        query = loadtracks()
+        logger.info("Reloaded Tracks: "+query+"requests "++str(counter)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
+        pass
+
+    if (counter % 100 == 0):
+        logger.info(""+str(counter)+" requests: until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
+
+    if not ('next_results' in result['search_metadata'] or len(result['statuses']) > 0):
+        date_changed = True
         until_date = add_day(until_date)
+        logger.info(">>> SWITCHED TO NEW DATE: | new: " + until_date +" | new_since_id: " + new_since_id + "<<<")
+        if (until_date == end_date):
+            logger.warning("THE END DATE IS REACHED " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " | ")
+            break
+
+        old_since_id = new_since_id
 
     try:
-        if 'next_results' in result['search_metadata']:
+        if 'next_results' in result['search_metadata'] and date_changed==False:
             next_results_url_params = result['search_metadata']['next_results']
             if next_results_url_params is not None and len(next_results_url_params) != 0:
                 next_max_id = next_results_url_params.split('max_id=')[1].split('&')[0]
-                result = twitter.search(q=query, count=fetch_count, lan=language, max_id=next_max_id, until=until_date)
+
+                if int(old_since_id) > int(next_max_id):
+                    logger.error("NEW SINCE ID GREATER THAN NEXT_MAX_ID! " + until_date + " | " + new_since_id + " | " + old_since_id + " | " + next_max_id)
+                    break
+
+                result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type,
+                                        since_id=old_since_id, max_id=next_max_id, until=until_date)
         else:
-            result = twitter.search(q=query, count=fetch_count, lan=language, until=until_date)
+            result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type, since_id=new_since_id, until=until_date)
+            date_changed = False
+            if 'refresh_url' in result['search_metadata']:
+                refresh_url_url_params = result['search_metadata']['refresh_url']
+                if refresh_url_url_params is not None and len(refresh_url_url_params) != 0:
+                    new_since_id = refresh_url_url_params.split('since_id=')[1].split('&')[0]
 
         store_search_results(result['statuses'])
     except twython.exceptions.TwythonRateLimitError as e:
-        print "Rate limit exceeded. Sleeping 1 minute."
+        logger.error("Rate limit exceeded. Sleeping 1 minute.")
         time.sleep(60)
     except KeyError as ke:
-        print "key error: " + str(ke.message) + " | date: " + until_date
-        break;
+        logger.error("key error: " + str(ke.message) +"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id)
+    except Exception as e:
+        logger.error("Exception occurred: " + str(e.message)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id)

@@ -27,9 +27,11 @@ validation_word = 'jesuischarlie'
 # search_hasthags = ['#jesuischarlie']
 fetched_tweets_counter = 0
 result_type = "recent"
-starting_since_id = '552166160930988032'
-until_date = "2015-01-06"
+
+until_date = "2015-01-09"
 end_date = "2015-01-14"
+starting_since_id = '553030618670305280'
+optional_max_id = '553065176497283071'
 
 # LOGGER
 FORMAT = '[%(asctime)-15s] %(levelname)s: %(message)s'
@@ -126,8 +128,13 @@ while flag is True:
     try:
         print language
 
-        result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type,
-                                since_id=starting_since_id, until=until_date)
+        if optional_max_id is not None:
+            result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type,
+                                    since_id=starting_since_id, max_id=optional_max_id, until=until_date)
+        else:
+            result = twitter.search(q=query, count=fetch_count, lang=language, result_type=result_type,
+                                    since_id=starting_since_id, until=until_date)
+
         if 'refresh_url' in result['search_metadata']:
                 refresh_url_url_params = result['search_metadata']['refresh_url']
                 if refresh_url_url_params is not None and len(refresh_url_url_params) != 0:
@@ -154,7 +161,10 @@ while True:
     if (counter % 100 == 0):
         logger.info(""+str(counter)+" requests: until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
 
-    if not ('next_results' in result['search_metadata'] or len(result['statuses']) > 0):
+    if not ('search_metadata' in result):
+         logger.info("Search metadata not in result: "+query+"requests "+str(counter)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id + " |next max id "+next_max_id)
+         break
+    elif not ('next_results' in result['search_metadata'] or len(result['statuses']) > 0):
         date_changed = True
         until_date = add_day(until_date)
         logger.info(">>> SWITCHED TO NEW DATE: | new: " + until_date +" | new_since_id: " + new_since_id + "<<<")
@@ -189,6 +199,6 @@ while True:
         logger.error("Rate limit exceeded. Sleeping 1 minute.")
         time.sleep(60)
     except KeyError as ke:
-        logger.error("key error: " + str(ke.message) +"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id)
+        logger.error("key error: " + str(ke.message) +"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id+" |next max id: "+next_max_id)
     except Exception as e:
-        logger.error("Exception occurred: " + str(e.message)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id)
+        logger.error("Exception occurred: " + str(e.message)+"| until_date " + until_date + " | new since id " + new_since_id + " | old since id " + old_since_id+" |next max id: "+next_max_id)
